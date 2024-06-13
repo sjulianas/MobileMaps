@@ -18,27 +18,49 @@ import { useEffect, useState, useRef } from 'react'; //useRef - referencia para 
 // import { NavigationContainer } from '@react-navigation/native';
 // import { createStackNavigator } from '@react-navigation/stack';
 
-
 export default function App() {
   const [location, setLocation] = useState<LocationObject | null>(null);
+  const [nearestSensor, setNearestSensor] = useState<string | null>(null);
 
   const mapRef = useRef<MapView>(null);
 
-  const latSensor = -22.914069;
-  const longSensor = -47.068136;
+  const sensors = [
+    { lat: -22.914069, long: -47.068136, name: 'Sensor 1', image: require('./assets/sensor1.png') },
+    { lat: -22.914199, long: -47.068572, name: 'Sensor 2', image: require('./assets/sensor2.png') },
+    { lat: -22.914208, long: -47.068324, name: 'Sensor 3', image: require('./assets/sensor3.png') },
+    { lat: -22.914280, long: -47.068621, name: 'Sensor 4', image: require('./assets/sensor4.png') },
+  ];
 
-  
-  const latSensor2 = -22.914199;
-  const longSensor2 = -47.068572;
+  function calcularDistancias(lat1, lon1, lat2, lon2) { 
+    const R = 6371; 
 
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
 
-  const latSensor3 = -22.914208;
-  const longSensor3 = -47.068324;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
-  const latSensor4 = -22.914280;
-  const longSensor4 = -47.068621;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; 
+  }
 
+  function calculoProximo(currentLat, currentLong) {
+    let nearest = sensors[0];
 
+    let minDistance = calcularDistancias(currentLat, currentLong, sensors[0].lat, sensors[0].long);
+    
+    sensors.forEach(sensor => {
+      const distance = calcularDistancias(currentLat, currentLong, sensor.lat, sensor.long);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = sensor;
+      }
+    });
+
+    return nearest.name;
+  }
 
   async function requestLocationPermissions() {
     const { granted } = await requestForegroundPermissionsAsync();
@@ -46,8 +68,6 @@ export default function App() {
     if (granted) {
       const currentPosition = await getCurrentPositionAsync();
       setLocation(currentPosition); // Guardar Posição atual
-
-      // console.log("LOCALIZAÇÃO ATUAL =>", currentPosition)
     }
   }
 
@@ -60,26 +80,24 @@ export default function App() {
       distanceInterval: 1 // distância
 
     }, (response) => {
-      // console.log("NOVA LOCALIZAÇÃO!", response);
       setLocation(response); //nova localização com alterações
       mapRef.current?.animateCamera({ //Posição da camera no mapa
-        // pitch: 0,
         center: response.coords
-      })
+      });
+
+      const nearest = calculoProximo(response.coords.latitude, response.coords.longitude);
+      setNearestSensor(nearest);
     });
   }, []);
 
   return (
-    
     <View style={styles.container}>
-
       <Image
-              source={require('./assets/Logo.png')}
-              style={{ width: '70%', marginBottom: 20 }} />
+        source={require('./assets/Logo.png')}
+        style={{ width: '70%', marginBottom: 20 }} />
 
       <Text style={{marginTop: 5, marginBottom:20, fontWeight: 600, fontSize: 20 }}>Localização dos Sensores</Text>
       <Text style={{marginTop: -15, color: '#929395', marginBottom:30, fontWeight: 600, fontSize: 17 }}>Veja em tempo real os sensores!</Text>
-    
 
       {location && 
         <MapView 
@@ -92,11 +110,8 @@ export default function App() {
             longitudeDelta: 0.005
           }}
         >
-          
-          
-
           <Marker
-            coordinate={{ //cordenada
+            coordinate={{
               latitude: location.coords.latitude,
               longitude: location.coords.longitude,
             }}
@@ -107,47 +122,36 @@ export default function App() {
             />
           </Marker>
 
-          <Marker pinColor='green' onPress={()=> {console.log("Cliquei");}}coordinate={{latitude: latSensor, longitude: longSensor}}>
-            <Image source={require('./assets/sensor1.png')} style={{ width: 30, height: 30 }} />
-          </Marker>
-
-          <Marker pinColor='red' onPress={()=> {console.log("Cliquei");}}coordinate={{latitude: latSensor2, longitude: longSensor2}}>
-            <Image source={require('./assets/sensor2.png')} style={{ width: 30, height: 30 }} />
-          </Marker>
-
-          <Marker pinColor='blue' onPress={()=> {console.log("Cliquei");}}coordinate={{latitude: latSensor3, longitude: longSensor3}}>
-            <Image source={require('./assets/sensor3.png')} style={{ width: 30, height: 30 }} />
-          </Marker>
-
-          <Marker pinColor='yellow' onPress={()=> {console.log("Cliquei");}}coordinate={{latitude: latSensor4, longitude: longSensor4}}>
-            <Image source={require('./assets/sensor4.png')} style={{ width: 30, height: 30 }} />
-          </Marker>
-
+          {sensors.map((sensor, index) => (
+            <Marker
+              key={index}
+              coordinate={{latitude: sensor.lat, longitude: sensor.long}}
+            >
+              <Image source={sensor.image} style={{ width: 30, height: 30 }} />
+            </Marker>
+          ))}
         </MapView>
-      
       }
 
       <View>
-            <Text style={{marginTop: 30, fontSize: 17 }}>
-              Latitude: {location?.coords.latitude.toFixed(6)}
-            </Text>
+        <Text style={{marginTop: 30, fontSize: 17 }}>
+          Latitude: {location?.coords.latitude.toFixed(6)}
+        </Text>
 
-            <Text style={{marginTop: 5, fontSize: 17 }}>
-              Longitude: {location?.coords.longitude.toFixed(6)}
-            </Text>
+        <Text style={{marginTop: 5, fontSize: 17 }}>
+          Longitude: {location?.coords.longitude.toFixed(6)}
+        </Text>
+
+        <Text style={{marginTop: 15, fontSize: 17, fontWeight: 'bold', color: '#5D9630' }}>
+          Sensor mais próximo: {nearestSensor}
+        </Text>
       </View>
 
-      
-      {/* <View>
-        <Text>
-          Sensor {id} com o tipo (tipo), de latitude (lat) e longitude (long)
-        </Text>
+      {/* <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Button title="Ir para Sensores" onPress={() => navigation.navigate('Sensores')} // Navega para a tela de Sensores quando o botão é clicado
+        />
       </View> */}
 
-    {/* <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Button title="Ir para Sensores" onPress={() => navigation.navigate('Sensores')} // Navega para a tela de Sensores quando o botão é clicado
-      />
-    </View> */}
 
     </View>
   );
